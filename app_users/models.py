@@ -4,8 +4,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.models import  AbstractUser
 from django.core.validators import FileExtensionValidator
 from django.db import models
+from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from Config import settings
 from app_common.models import BaseModel
 
 
@@ -57,8 +59,32 @@ class UserProfileConfirmation(BaseModel):
 
 
 
+class FollowModel(BaseModel):  # `BaseModel` noto‘g‘ri bo‘lsa, `models.Model` ishlatamiz
+    from_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='following'
+    )
+    to_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='followers'
+    )
 
+    def __str__(self):
+        return f"{self.from_user.username} following {self.to_user.username}"
 
+    def clean(self):
+        """O‘zini o‘zi follow qilishni taqiqlaymiz."""
+        if self.from_user == self.to_user:
+            raise ValidationError("You cannot follow yourself.")
+
+    class Meta:
+        verbose_name = "follower"
+        verbose_name_plural = "followers"
+        unique_together = ('from_user', 'to_user')  # Takroriy follow qilishni oldini oladi
+        constraints = [
+            models.CheckConstraint(
+                check=~models.Q(from_user=models.F('to_user')),
+                name='prevent_self_follow'
+            )
+        ]
 
 
 
